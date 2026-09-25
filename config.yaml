@@ -1,0 +1,65 @@
+modelo:
+  base: Qwen/Qwen3.5-9B-Base
+  atencion: sdpa
+
+lora:
+  r: 64
+  alpha: 128
+  r_compuertas: 16
+
+datos:
+  raiz: dataset/cpt
+  manifest: dataset/cpt/manifest.jsonl
+  salida: datos_cpt
+  seq_len: 8192
+  fraccion_val: 0.2
+  max_documentos: 60
+  num_proc: 8
+  filtros:
+    versiones: null
+    fuentes: [sentencias_ags]
+    materias: null
+    origen_texto: null
+  encabezado:
+    campos: [tipo, materia, ambito, organo, entidad, anio, regimen, origen_texto]
+    nulos: omitir
+    perdida: false
+  testado: conservar
+  duplicados:
+    politica: conservar
+    max_repeticiones: 3
+    min_caracteres: 200
+  repaso:
+    ruta: null
+    campo: text
+    max_documentos: null
+
+mezcla:
+  repeticiones:
+    "*": 1.0
+
+entrenamiento:
+  epocas: 1
+  max_pasos: 30
+  acumulacion: 4
+  lr: 1.0e-4
+  calentamiento: 0.03
+  estrategia: steps
+  pasos_guardado: 15
+  pasos_registro: 1
+  semilla: 42
+
+evaluacion:
+  lotes: datos_cpt/lotes
+  n_segmentos: 16
+  max_tokens: 2048
+  fragmento: 512
+  sondas: null
+  normalizar_sondas: false
+  prefijos: null
+  max_nuevos_tokens: 128
+  benchmarks:
+    tareas: [belebele_spa_Latn, xnli_es_spanish_bench, copa_es, openbookqa_es, hellaswag, arc_easy]
+    num_fewshot: 0
+    batch_size: 4
+    limite: 200

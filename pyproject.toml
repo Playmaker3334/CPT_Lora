@@ -1,0 +1,24 @@
+[project]
+name = "cpt_qwen35"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "transformers>=5.17",
+    "peft>=0.21",
+    "datasets",
+    "liger-kernel>=0.8.3",
+    "flash-linear-attention",
+    "causal-conv1d",
+    "bitsandbytes",
+    "sortedcontainers",
+    "pyyaml",
+    "numpy",
+    "tensorboard",
+]
+
+[project.optional-dependencies]
+benchmarks = ["lm_eval>=0.4.13"]
+
+[tool.setuptools]
+packages = ["cpt_qwen35"]
