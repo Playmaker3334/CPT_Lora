@@ -12,7 +12,7 @@ datos:
   manifest: dataset/cpt/registros/2026-10-05/manifest.jsonl
   salida: datos_cpt
   seq_len: 8192
-  fraccion_val: 0.05
+  fraccion_val: 0.02
   max_documentos: 2000
   num_proc: 8
   filtros:
@@ -51,7 +51,7 @@ entrenamiento:
   semilla: 42
 
 evaluacion:
-  lotes: datos_cpt/lotes
+  lotes: lotes
   n_segmentos: 16
   max_tokens: 2048
   fragmento: 512

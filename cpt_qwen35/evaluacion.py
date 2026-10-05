@@ -21,16 +21,29 @@ def _hash(items):
     return hashlib.sha256(json.dumps(items, sort_keys=True).encode()).hexdigest()
 
 
+def _claves(segmentos):
+    columnas = segmentos.select_columns(["fuente", "id_documento"])
+    return set(zip(columnas["fuente"], (str(x) for x in columnas["id_documento"])))
+
+
 def construir_lotes(cfg, dir_datos, semilla):
     destino = Path(cfg["lotes"])
     destino.mkdir(parents=True, exist_ok=True)
     val = load_from_disk(str(Path(dir_datos) / "val" / "segmentos"))
+    claves_train = _claves(load_from_disk(str(Path(dir_datos) / "train" / "segmentos")))
     fuentes = val["fuente"]
     rng = np.random.default_rng(semilla)
     for nombre, condicion in LOTES.items():
         ruta = destino / f"{nombre}.json"
         if ruta.exists():
-            print(f"lote {nombre}: ya existe, no se regenera")
+            items = json.loads(ruta.read_text())["items"]
+            contaminados = {(it["fuente"], str(it["id_documento"])) for it in items} & claves_train
+            if contaminados:
+                raise SystemExit(
+                    f"Lote {nombre}: {len(contaminados)} documentos están en train (¿cambió fraccion_val o la clave "
+                    f"del repaso?). Borra el lote para regenerarlo; dejará de ser comparable con corridas anteriores."
+                )
+            print(f"lote {nombre}: ya existe, no se regenera; sin documentos en train")
             continue
         candidatos = [i for i, f in enumerate(fuentes) if condicion(f)]
         if not candidatos:

@@ -122,9 +122,10 @@ def leer_repaso(cfg):
         return []
     docs = []
     with open(rep["ruta"], encoding="utf-8") as f:
-        for i, linea in enumerate(l for l in f if l.strip()):
+        for linea in (l for l in f if l.strip()):
             texto = json.loads(linea)[rep["campo"]]
-            clave = ("repaso", str(i))
+            huella = hashlib.sha256(texto.encode()).hexdigest()
+            clave = ("repaso", huella[:16])
             docs.append(
                 {
                     "texto": texto,
@@ -133,7 +134,7 @@ def leer_repaso(cfg):
                     "fuente": "repaso",
                     "id_documento": clave[1],
                     "version_pipeline_limpieza": "externo",
-                    "sha256_origen": hashlib.sha256(texto.encode()).hexdigest(),
+                    "sha256_origen": huella,
                     "origen_texto": "nativo",
                     "particion": particion(clave, cfg["fraccion_val"]),
                 }
