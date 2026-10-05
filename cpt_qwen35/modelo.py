@@ -17,6 +17,8 @@ TARGET = (
     r")$"
 )
 
+LIGER = {"fused_linear_cross_entropy": True, "rms_norm": False, "swiglu": False}
+
 
 def exigir_kernels():
     faltan = [p for p in ("fla", "causal_conv1d") if importlib.util.find_spec(p) is None]
@@ -35,7 +37,7 @@ def cargar(cfg, liger):
     if liger:
         from liger_kernel.transformers import apply_liger_kernel_to_qwen3_5
 
-        apply_liger_kernel_to_qwen3_5(fused_linear_cross_entropy=True, rms_norm=False, swiglu=False)
+        apply_liger_kernel_to_qwen3_5(**LIGER)
     modelo = AutoModelForCausalLM.from_pretrained(
         cfg["base"],
         dtype=torch.bfloat16,

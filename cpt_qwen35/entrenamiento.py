@@ -5,7 +5,7 @@ from transformers import Trainer, TrainerCallback, TrainingArguments
 
 from .empaquetado import Colador, Contenedores
 from .evaluacion import cargar_lotes, sondear
-from .modelo import aplicar_lora, cargar, exigir_kernels
+from .modelo import LIGER, aplicar_lora, cargar, exigir_kernels
 
 
 class Sondeo(TrainerCallback):
@@ -57,6 +57,8 @@ def argumentos(cfg, salida):
         save_steps=cfg["pasos_guardado"],
         logging_steps=cfg["pasos_registro"],
         include_num_input_tokens_seen="all",
+        use_liger_kernel=True,
+        liger_kernel_config=LIGER,
         remove_unused_columns=False,
         dataloader_num_workers=2,
         report_to=["tensorboard"],
