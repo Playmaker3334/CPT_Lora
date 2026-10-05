@@ -40,10 +40,11 @@ def verificar(cfg, n_tokens=1024):
     print(f"empaquetado vs aislado: max|dif|={d_ok:.5f} acuerdo_argmax={acuerdo:.4f}")
     print(f"control sin cu_seq_lens ni seq_idx: max|dif|={d_control:.5f}")
     print("aislamiento: OK" if d_ok < 0.1 * d_control else "aislamiento: FALLA")
-    del modelo
+    del modelo, solo, junto, control
     torch.cuda.empty_cache()
 
     modelo = aplicar_lora(cargar(cfg["modelo"], liger=True), cfg["lora"])
+    modelo.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     modelo.train()
     salida = modelo(**_a_dispositivo(Colador()([[(A["input_ids"], A["labels"]), (B["input_ids"], B["labels"])]]), modelo.device))
     salida.loss.backward()
