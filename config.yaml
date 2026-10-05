@@ -12,8 +12,8 @@ datos:
   manifest: dataset/cpt/registros/2026-10-05/manifest.jsonl
   salida: datos_cpt
   seq_len: 8192
-  fraccion_val: 0.2
-  max_documentos: 60
+  fraccion_val: 0.05
+  max_documentos: 2000
   num_proc: 8
   filtros:
     versiones: null
@@ -30,8 +30,8 @@ datos:
     max_repeticiones: 3
     min_caracteres: 200
   repaso:
-    ruta: null
-    campo: text
+    ruta: datos/repaso_es.jsonl
+    campo: texto
     max_documentos: null
 
 mezcla:
@@ -40,13 +40,14 @@ mezcla:
 
 entrenamiento:
   epocas: 1
-  max_pasos: 30
+  max_pasos: -1
   acumulacion: 4
   lr: 1.0e-4
   calentamiento: 0.03
   estrategia: steps
-  pasos_guardado: 15
+  pasos_guardado: 100
   pasos_registro: 1
+  max_contenedores_eval: 32
   semilla: 42
 
 evaluacion:

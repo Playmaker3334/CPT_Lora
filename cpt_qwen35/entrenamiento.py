@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import numpy as np
+from torch.utils.data import Subset
 from transformers import Trainer, TrainerCallback, TrainingArguments
 
 from .empaquetado import Colador, Contenedores
@@ -20,18 +22,29 @@ class Sondeo(TrainerCallback):
             return
         resultado = sondear(model, self.lotes, self.fragmento)
         (self.destino / f"paso-{state.global_step}.json").write_text(json.dumps(resultado, indent=2))
-        total = resultado.get("juridico", {}).get("total")
-        if total:
-            print(
-                f"[sondeo paso {state.global_step}] loss={total['loss']:.4f} ganancia={total['ganancia']:.4f} "
-                f"entropia={total['entropia']:.4f} kl={total['kl_contra_base']:.5f}"
-            )
+        for nombre in ("juridico", "general"):
+            total = resultado.get(nombre, {}).get("total")
+            if total:
+                print(
+                    f"[sondeo paso {state.global_step} {nombre}] loss={total['loss']:.4f} "
+                    f"ganancia={total['ganancia']:.4f} entropia={total['entropia']:.4f} "
+                    f"kl={total['kl_contra_base']:.5f}"
+                )
+        if "general" not in resultado:
+            print(f"[sondeo paso {state.global_step}] sin lote general: no hay medida de olvido")
 
     def on_train_begin(self, args, state, control, model=None, **kwargs):
         self._registrar(state, model)
 
     def on_save(self, args, state, control, model=None, **kwargs):
         self._registrar(state, model)
+
+
+def subconjunto_eval(val, maximo, semilla):
+    if not maximo or maximo >= len(val):
+        return val
+    rng = np.random.default_rng(semilla)
+    return Subset(val, sorted(rng.choice(len(val), maximo, replace=False).tolist()))
 
 
 def argumentos(cfg, salida):
@@ -70,13 +83,17 @@ def entrenar(cfg, salida, reanudar=None):
     exigir_kernels()
     modelo = aplicar_lora(cargar(cfg["modelo"], liger=True), cfg["lora"])
     datos = Path(cfg["datos"]["salida"])
+    ent = cfg["entrenamiento"]
+    val = Contenedores(datos / "val")
     trainer = Trainer(
         model=modelo,
-        args=argumentos(cfg["entrenamiento"], salida),
+        args=argumentos(ent, salida),
         train_dataset=Contenedores(datos / "train"),
-        eval_dataset=Contenedores(datos / "val"),
+        eval_dataset=subconjunto_eval(val, ent.get("max_contenedores_eval"), ent["semilla"]),
         data_collator=Colador(),
         callbacks=[Sondeo(cargar_lotes(cfg["evaluacion"]), cfg["evaluacion"]["fragmento"], Path(salida) / "sondeo")],
     )
     trainer.train(resume_from_checkpoint=reanudar)
     trainer.save_model(str(Path(salida) / "adaptador_final"))
+    if len(trainer.eval_dataset) < len(val):
+        print(f"validacion completa: {trainer.evaluate(eval_dataset=val)}")

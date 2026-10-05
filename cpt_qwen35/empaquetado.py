@@ -35,22 +35,35 @@ def factor(fuente, repeticiones):
     return 1.0
 
 
+def copias(fuentes, repeticiones, rng):
+    f = np.array([factor(x, repeticiones or {}) for x in fuentes])
+    return np.floor(f).astype(np.int64) + (rng.random(len(f)) < f - np.floor(f))
+
+
 def empaquetar(dir_particion, max_len, repeticiones, semilla):
     dir_particion = Path(dir_particion)
     seg = load_from_disk(str(dir_particion / "segmentos")).select_columns(["n", "fuente"])
     n = np.asarray(seg["n"], dtype=np.int64)
     fuentes = seg["fuente"]
     rng = np.random.default_rng(semilla)
-    f = np.array([factor(x, repeticiones or {}) for x in fuentes])
-    k = np.floor(f).astype(np.int64) + (rng.random(len(f)) < f - np.floor(f))
-    indices = np.repeat(np.arange(len(n)), k)
-    contenedores = [[int(indices[j]) for j in c] for c in bfd(n[indices], max_len)]
+    k = copias(fuentes, repeticiones, rng)
+    rondas = int(k.max()) if len(k) else 0
+    contenedores = []
+    for ronda in range(rondas):
+        indices = np.flatnonzero(k > ronda)
+        contenedores += [[int(indices[j]) for j in c] for c in bfd(n[indices], max_len)]
+    duplicados = sum(1 for c in contenedores if len(c) != len(set(c)))
+    if duplicados:
+        raise SystemExit(f"{duplicados} contenedores repiten un segmento.")
     (dir_particion / "contenedores.json").write_text(json.dumps(contenedores))
     tokens = Counter()
-    for i in indices:
-        tokens[fuentes[i]] += int(n[i])
+    for i, veces in enumerate(k):
+        tokens[fuentes[i]] += int(n[i]) * int(veces)
     total = sum(tokens.values())
-    print(f"{dir_particion.name}: contenedores={len(contenedores)} ocupacion={total / max(len(contenedores) * max_len, 1):.4f}")
+    print(
+        f"{dir_particion.name}: contenedores={len(contenedores)} rondas={rondas} "
+        f"ocupacion={total / max(len(contenedores) * max_len, 1):.4f}"
+    )
     for fuente, t in tokens.most_common():
         print(f"  {fuente:<24} {t:>12} {t / total:.4f}")
 
