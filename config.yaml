@@ -9,7 +9,7 @@ lora:
 
 datos:
   raiz: dataset/cpt
-  manifest: dataset/cpt/manifest.jsonl
+  manifest: dataset/cpt/registros/2026-10-05/manifest.jsonl
   salida: datos_cpt
   seq_len: 8192
   fraccion_val: 0.2
