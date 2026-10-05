@@ -56,6 +56,7 @@ def argumentos(cfg, salida):
         eval_steps=cfg["pasos_guardado"],
         save_steps=cfg["pasos_guardado"],
         logging_steps=cfg["pasos_registro"],
+        include_num_input_tokens_seen="all",
         remove_unused_columns=False,
         dataloader_num_workers=2,
         report_to=["tensorboard"],
