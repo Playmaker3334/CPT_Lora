@@ -30,7 +30,7 @@ def exigir_kernels():
 
 
 def tokenizador(cfg):
-    return AutoTokenizer.from_pretrained(cfg["base"])
+    return AutoTokenizer.from_pretrained(cfg.get("tokenizador") or cfg["base"])
 
 
 def cargar(cfg, liger):
@@ -83,7 +83,7 @@ def cargar_para_evaluar(cfg, adaptador=None):
 
 
 def fusionar(cfg, adaptador, destino):
-    modelo = AutoModelForCausalLM.from_pretrained(cfg["base"], dtype=torch.bfloat16, device_map="cpu")
+    modelo = AutoModelForCausalLM.from_pretrained(cfg["base"], dtype=torch.float32, device_map="cpu")
     modelo = PeftModel.from_pretrained(modelo, adaptador).merge_and_unload()
-    modelo.save_pretrained(destino)
+    modelo.to(torch.bfloat16).save_pretrained(destino)
     tokenizador(cfg).save_pretrained(destino)

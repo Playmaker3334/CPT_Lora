@@ -1,32 +1,61 @@
 modelo:
   base: Qwen/Qwen3.5-9B-Base
-  atencion: sdpa
+  tokenizador: null
+  atencion: kernels-community/flash-attn2@v2
 
 lora:
-  r: 64
-  alpha: 128
+  r: 128
+  alpha: 256
   r_compuertas: 16
 
 datos:
   raiz: dataset/cpt
-  manifest: dataset/cpt/registros/2026-10-05/manifest.jsonl
+  manifest: null
   salida: datos_cpt
   seq_len: 8192
   fraccion_val: 0.02
-  max_documentos: 2000
+  siempre_train: [codigos]
+  max_documentos:
+    "sentencias_*": 2000
   num_proc: 8
   filtros:
     versiones: null
-    fuentes: [sentencias_ags]
+    fuentes: [sentencias_oaj_mercantil, codigos]
     materias: null
     origen_texto: null
+    campos:
+      metadata_especifica_fuente.metadata_cruda.tipo_asunto: null
+      metadata_especifica_fuente.metadata_cruda.organo_tipo: null
+      metadata_especifica_fuente.metadata_cruda.voz_busqueda: null
+    rangos:
+      anio: [null, null]
+      complejidad.puntaje: [null, null]
+  titulos:
+    federal/CCom.pdf: Código de Comercio
+    federal/LFPC.pdf: Ley Federal de Protección al Consumidor
+    federal/LGSM.pdf: Ley General de Sociedades Mercantiles
+    federal/LGTOC.pdf: Ley General de Títulos y Operaciones de Crédito
+    federal/LIC.pdf: Ley de Instituciones de Crédito
+    federal/LISF.pdf: Ley de Instituciones de Seguros y de Fianzas
+    federal/LPDUSF.pdf: Ley de Protección y Defensa al Usuario de Servicios Financieros
+    federal/LTOSF.pdf: Ley para la Transparencia y Ordenamiento de los Servicios Financieros
   encabezado:
-    campos: [tipo, materia, ambito, organo, entidad, anio, regimen, origen_texto]
+    campos:
+      - titulo
+      - tipo
+      - materia
+      - ambito
+      - organo
+      - entidad
+      - anio
+      - regimen
+      - origen_texto
+      - metadata_especifica_fuente.metadata_cruda.tipo_asunto
     nulos: omitir
     perdida: false
-  testado: conservar
+  testado: enmascarar
   duplicados:
-    politica: conservar
+    politica: enmascarar
     max_repeticiones: 3
     min_caracteres: 200
   repaso:
@@ -36,6 +65,7 @@ datos:
 
 mezcla:
   repeticiones:
+    "codigos": 3.0
     "*": 1.0
 
 entrenamiento:
@@ -45,10 +75,18 @@ entrenamiento:
   lr: 1.0e-4
   calentamiento: 0.03
   estrategia: steps
-  pasos_guardado: 100
+  pasos_guardado: 0.05
+  checkpoints: 2
+  mejor_al_final: false
   pasos_registro: 1
   max_contenedores_eval: 32
   semilla: 42
+
+monitoreo:
+  intervalo_s: 5
+  latido_min: 30
+  reporte_min: 10
+  margen_saldo_min: 8
 
 evaluacion:
   lotes: lotes

@@ -2,7 +2,7 @@ import bisect
 import re
 
 import numpy as np
-from datasets import Dataset, Features, Sequence, Value
+from datasets import Dataset, Features, Sequence, Value, load_from_disk
 
 from .corpus import TRAZABILIDAD
 
@@ -79,7 +79,7 @@ class Segmentador:
         self.eos = tokenizador.eos_token_id
 
     def __call__(self, lote):
-        salida = {k: [] for k in ("input_ids", "labels", "n", "n_enmascarados", "indice_segmento", *TRAZABILIDAD)}
+        salida = {k: [] for k in ("input_ids", "labels", "n", "n_perdida", "n_enmascarados", "indice_segmento", *TRAZABILIDAD)}
         cuerpos = self.tok(lote["texto"], add_special_tokens=False, return_offsets_mapping=True)
         encabezados = self.tok(lote["encabezado"], add_special_tokens=False)["input_ids"]
         for i, texto in enumerate(lote["texto"]):
@@ -103,11 +103,22 @@ class Segmentador:
                 salida["input_ids"].append(x)
                 salida["labels"].append(y)
                 salida["n"].append(len(x))
+                salida["n_perdida"].append(sum(1 for v in y[1:] if v != IGNORAR))
                 salida["n_enmascarados"].append(int(enmascarado[a:b].sum()))
                 salida["indice_segmento"].append(k)
                 for campo in TRAZABILIDAD:
                     salida[campo].append(lote[campo][i])
         return salida
+
+
+def vigentes(destino):
+    ruta = destino / "train" / "segmentos"
+    if not ruta.exists():
+        return False
+    if "n_perdida" not in load_from_disk(str(ruta)).column_names:
+        print("segmentos sin la columna n_perdida: se retokeniza")
+        return False
+    return True
 
 
 def construir(docs, tokenizador, cfg, destino):
@@ -117,14 +128,15 @@ def construir(docs, tokenizador, cfg, destino):
         batched=True,
         batch_size=64,
         remove_columns=base.column_names,
-        num_proc=cfg["num_proc"],
+        num_proc=min(cfg["num_proc"], max(len(base), 1)),
     )
     for part in ("train", "val"):
         sub = segmentos.filter(lambda p: p == part, input_columns="particion", num_proc=cfg["num_proc"])
         sub.save_to_disk(str(destino / part / "segmentos"))
         tokens = sum(sub["n"])
+        con_perdida = sum(sub["n_perdida"])
         enmascarados = sum(sub["n_enmascarados"])
         print(
-            f"{part}: segmentos={len(sub)} tokens={tokens} "
+            f"{part}: segmentos={len(sub)} tokens={tokens} con_perdida={con_perdida} ({con_perdida / max(tokens, 1):.4f}) "
             f"enmascarados={enmascarados} ({enmascarados / max(tokens, 1):.4f})"
         )

@@ -3,18 +3,23 @@ name = "cpt_qwen35"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
-    "torch",
-    "transformers>=5.17",
-    "peft>=0.21",
-    "datasets",
-    "liger-kernel>=0.8.3",
-    "flash-linear-attention",
-    "causal-conv1d",
-    "bitsandbytes",
-    "sortedcontainers",
+    "torch==2.11.0",
+    "transformers[kernels]==5.19.0",
+    "kernels==0.17.2",
+    "peft==0.21.2",
+    "datasets==5.1.0",
+    "liger-kernel==0.8.4",
+    "flash-linear-attention==0.5.2",
+    "causal-conv1d==1.7.0",
+    "bitsandbytes==0.50.2",
+    "sortedcontainers==2.4.0",
     "pyyaml",
     "numpy",
-    "tensorboard",
+    "tensorboard==2.21.0",
+    "matplotlib==3.11.2",
+    "slack_sdk==3.44.1",
+    "nvidia-ml-py==13.615.71",
+    "psutil",
 ]
 
 [project.optional-dependencies]

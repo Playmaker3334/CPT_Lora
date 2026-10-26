@@ -13,37 +13,75 @@ TRAZABILIDAD = ("fuente", "id_documento", "version_pipeline_limpieza", "sha256_o
 
 
 def leer_manifest(ruta):
+    if not ruta:
+        return None
     with open(ruta, encoding="utf-8") as f:
         return {(d["fuente"], str(d["id_documento"])) for d in (json.loads(l) for l in f if l.strip())}
 
 
-def particion(clave, fraccion_val):
+def coincide(fuente, patrones):
+    return any(fnmatch.fnmatch(fuente, p) for p in patrones or ())
+
+
+def particion(clave, fraccion_val, siempre_train=()):
+    if coincide(clave[0], siempre_train):
+        return "train"
     h = int(hashlib.sha256(f"{clave[0]}\x1f{clave[1]}".encode()).hexdigest()[:8], 16)
     return "val" if h / 0xFFFFFFFF < fraccion_val else "train"
 
 
-def pasa_filtros(doc, filtros):
+def valor(doc, campo):
+    if "." not in campo:
+        return (doc.get("metadata") or {}).get(campo)
+    actual = doc
+    for parte in campo.split("."):
+        if not isinstance(actual, dict):
+            return None
+        actual = actual.get(parte)
+    return actual
+
+
+def numero(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def pasa_filtros(doc, filtros, exento=False):
     meta = doc.get("metadata") or {}
     if filtros.get("versiones") and doc.get("version_pipeline_limpieza") not in filtros["versiones"]:
         return False
-    if filtros.get("fuentes") and not any(fnmatch.fnmatch(doc["fuente"], p) for p in filtros["fuentes"]):
+    if filtros.get("fuentes") and not coincide(doc["fuente"], filtros["fuentes"]):
         return False
     if filtros.get("materias") and meta.get("materia") not in filtros["materias"]:
         return False
     if filtros.get("origen_texto") and meta.get("origen_texto") not in filtros["origen_texto"]:
         return False
+    if exento:
+        return True
+    for campo, permitidos in (filtros.get("campos") or {}).items():
+        if permitidos and valor(doc, campo) not in permitidos:
+            return False
+    for campo, (minimo, maximo) in (filtros.get("rangos") or {}).items():
+        minimo, maximo = numero(minimo), numero(maximo)
+        if minimo is None and maximo is None:
+            continue
+        v = numero(valor(doc, campo))
+        if v is None or (minimo is not None and v < minimo) or (maximo is not None and v > maximo):
+            return False
     return True
 
 
-def encabezado(meta, campos, nulos):
+def encabezado(doc, campos, nulos, titulos):
     partes = []
     for campo in campos:
-        valor = meta.get(campo)
-        if valor is None:
+        v = titulos.get(str(doc["id_documento"])) if campo == "titulo" else valor(doc, campo)
+        if v is None:
             if nulos == "omitir":
                 continue
-            valor = nulos
-        partes.append(f"{campo}: {valor}")
+            v = nulos
+        partes.append(f"{campo.rsplit('.', 1)[-1]}: {v}")
     return " | ".join(partes) + "\n" if partes else ""
 
 
@@ -84,35 +122,59 @@ def spans_duplicados(docs, max_repeticiones, min_caracteres):
     return sum(1 for c in conteo.values() if c > max_repeticiones)
 
 
+def tope(fuente, maximos):
+    if not maximos:
+        return None
+    if isinstance(maximos, int):
+        return maximos
+    return next((n for patron, n in maximos.items() if fnmatch.fnmatch(fuente, patron)), None)
+
+
+def orden_estable(ruta, raiz):
+    return hashlib.sha256(ruta.relative_to(raiz).as_posix().encode()).hexdigest()
+
+
 def leer_juridico(cfg):
     raiz = Path(cfg["raiz"])
-    incluidos = leer_manifest(cfg["manifest"])
+    incluidos = leer_manifest(cfg.get("manifest"))
     enc = cfg["encabezado"]
+    titulos = cfg.get("titulos") or {}
+    maximos = cfg.get("max_documentos")
     docs = []
-    for ruta in sorted(raiz.rglob("*.json")):
+    por_fuente = Counter()
+    for ruta in sorted(raiz.rglob("*.json"), key=lambda r: orden_estable(r, raiz)):
         with open(ruta, encoding="utf-8") as f:
             doc = json.load(f)
         if not isinstance(doc, dict) or "texto" not in doc:
             continue
         clave = (doc["fuente"], str(doc["id_documento"]))
-        if clave not in incluidos or not pasa_filtros(doc, cfg["filtros"]):
+        if incluidos is not None and clave not in incluidos:
             continue
+        if not pasa_filtros(doc, cfg["filtros"], coincide(doc["fuente"], cfg.get("siempre_train"))):
+            continue
+        limite = tope(doc["fuente"], maximos)
+        if limite is not None and por_fuente[doc["fuente"]] >= limite:
+            continue
+        por_fuente[doc["fuente"]] += 1
         meta = doc.get("metadata") or {}
         docs.append(
             {
                 "texto": doc["texto"],
-                "encabezado": encabezado(meta, enc["campos"], enc["nulos"]),
+                "encabezado": encabezado(doc, enc["campos"], enc["nulos"], titulos),
                 "spans": spans_testado(doc["texto"]) if cfg["testado"] == "enmascarar" else [],
                 "fuente": doc["fuente"],
                 "id_documento": clave[1],
                 "version_pipeline_limpieza": doc.get("version_pipeline_limpieza") or "",
                 "sha256_origen": doc.get("sha256_origen") or "",
                 "origen_texto": meta.get("origen_texto") or "",
-                "particion": particion(clave, cfg["fraccion_val"]),
+                "particion": particion(clave, cfg["fraccion_val"], cfg.get("siempre_train")),
             }
         )
-        if cfg.get("max_documentos") and len(docs) >= cfg["max_documentos"]:
-            break
+    sin_titulo = sorted(
+        d["id_documento"] for d in docs if coincide(d["fuente"], cfg.get("siempre_train")) and d["id_documento"] not in titulos
+    )
+    if "titulo" in enc["campos"] and sin_titulo:
+        print(f"aviso: documentos sin titulo en el encabezado: {sin_titulo}")
     return docs
 
 
